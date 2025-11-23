@@ -48,6 +48,23 @@ content: |
 - `--reasoning-effort`: 推論の強度 (`minimal`/`medium`/`high` のいずれか)
 - `--model`: モデル名を一時的に上書き
 
+## Python ライブラリとしての利用
+
+CLI と同じパラメータを Python から直接扱うこともできます。
+
+```python
+from gramregex.api import generate
+
+text = generate(
+    "your prompt",
+    grammar="root ::= 'ok'",
+    grammar_syntax="lark",
+    verbosity="medium",
+)
+
+print(text)
+```
+
 ## 開発
 
 品質チェックは Nox で実行します。

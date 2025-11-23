@@ -5,26 +5,11 @@ from typing import Annotated, Literal
 
 import typer
 
-from gramregex.config import load_grammar_config
 from gramregex.llm.factory import create_llm_client
+from gramregex.grammar import load_grammar
 from gramregex.settings import get_settings
 
 app = typer.Typer(add_completion=False, help="Generate grammar-constrained responses using OpenAI Responses API.")
-
-
-def _load_grammar(grammar: str | None, grammar_file: Path | None, *, config_path: Path | None) -> str:
-    if grammar and grammar_file:
-        msg = "--grammar と --grammar-file は同時に指定できません"
-        raise typer.BadParameter(msg)
-
-    if grammar_file:
-        return grammar_file.read_text(encoding="utf-8")
-
-    if grammar:
-        return grammar
-
-    config = load_grammar_config(config_path)
-    return config.content
 
 
 @app.command(name="generate")
@@ -63,7 +48,10 @@ def generate(
 ) -> None:
     """Generate output constrained by the given CFG grammar."""
     settings = get_settings()
-    cfg = _load_grammar(grammar, grammar_file, config_path=settings.grammar_config_path)
+    try:
+        cfg = load_grammar(grammar, grammar_file, config_path=settings.grammar_config_path)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
     if model:
         settings = settings.model_copy(update={"openai_model": model})
 
