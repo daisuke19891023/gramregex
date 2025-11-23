@@ -8,6 +8,7 @@ dependencies = [
     "openai>=2.8.1",
     "pydantic>=2.12.3",
     "pydantic-settings>=2.11.0",
+    "pyyaml>=6.0.3",
     "typer>=0.20.0",
 ]
 
@@ -134,3 +135,6 @@ markers = [
   "integration: marks integration tests",
   "asyncio: marks tests as asyncio"
 ]
+
+[tool.setuptools.package-data]
+"gramregex" = ["config/*.yaml"]

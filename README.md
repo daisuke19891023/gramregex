@@ -29,6 +29,18 @@ CFG ファイルを指定する場合:
 uv run gramregex --grammar-file path/to/grammar.cfg "your prompt"
 ```
 
+YAML の config で grammar を管理する場合 (name/description/content を定義):
+
+```yaml
+name: sample
+description: "サンプル grammar"
+content: |
+  root ::= "ok"
+```
+
+- `GRAMREGEX_CONFIG_PATH` 環境変数で config のパスを指定できます。
+- `--grammar` も `--grammar-file` も指定しなければ、まず `GRAMREGEX_CONFIG_PATH`、次にパッケージ同梱のデフォルト config から grammar を読み込みます。
+
 主なオプション:
 
 - `--grammar-syntax`: grammar ツールの `syntax` (`lark` もしくは `regex`。デフォルト: `lark`)

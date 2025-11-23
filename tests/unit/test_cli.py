@@ -1,10 +1,14 @@
 from pathlib import Path
 
 
+from collections.abc import Iterator
+
 import pytest
 from typer.testing import CliRunner
 
 from gramregex import cli
+from gramregex import settings as settings_module
+from gramregex.config import load_grammar_config
 from gramregex.llm.base import GrammarSyntax, ReasoningEffort, VerbosityLevel
 
 
@@ -33,6 +37,14 @@ class DummyClient:
             "reasoning_effort": reasoning_effort,
         }
         return "grammar-output"
+
+
+@pytest.fixture(autouse=True)
+def clear_settings_cache() -> Iterator[None]:
+    """Ensure settings cache does not leak between tests."""
+    settings_module.get_settings.cache_clear()
+    yield
+    settings_module.get_settings.cache_clear()
 
 
 def test_cli_uses_factory_and_outputs_result(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -76,17 +88,6 @@ def test_cli_uses_factory_and_outputs_result(monkeypatch: pytest.MonkeyPatch, tm
     }
 
 
-def test_cli_requires_grammar(monkeypatch: pytest.MonkeyPatch) -> None:
-    """CFG 未指定の場合にエラーとなることを検証する."""
-    runner = CliRunner()
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-
-    result = runner.invoke(cli.app, ["input text"])
-
-    assert result.exit_code != 0
-    assert "CFG 構文" in result.stdout
-
-
 def test_cli_defaults_grammar_syntax(monkeypatch: pytest.MonkeyPatch) -> None:
     """Grammar syntax が未指定の場合 lark が使われる."""
     runner = CliRunner()
@@ -113,3 +114,59 @@ def test_cli_defaults_grammar_syntax(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == 0, result.stdout
     assert dummy_client.generate_called_with is not None
     assert dummy_client.generate_called_with["grammar_syntax"] == "lark"
+
+
+def test_cli_loads_default_config_when_no_grammar(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Grammar オプションが無い場合、デフォルト設定から読み込む."""
+    runner = CliRunner()
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+
+    dummy_client = DummyClient(None)
+
+    def fake_create_client(_: object) -> DummyClient:
+        return dummy_client
+
+    monkeypatch.setattr(cli, "create_llm_client", fake_create_client)
+
+    result = runner.invoke(cli.app, ["input text"])
+
+    assert result.exit_code == 0, result.stdout
+    default_grammar = load_grammar_config(None).content
+    assert dummy_client.generate_called_with == {
+        "prompt": "input text",
+        "grammar": default_grammar,
+        "grammar_syntax": "lark",
+        "verbosity": None,
+        "reasoning_effort": None,
+    }
+
+
+def test_cli_loads_config_from_env_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """環境変数で指定した config から grammar を読む."""
+    runner = CliRunner()
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+
+    config_path = tmp_path / "grammar.yaml"
+    config_path.write_text(
+        """
+name: sample
+description: sample grammar
+content: |
+  root ::= "from-config"
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GRAMREGEX_CONFIG_PATH", str(config_path))
+
+    dummy_client = DummyClient(None)
+
+    def fake_create_client(_: object) -> DummyClient:
+        return dummy_client
+
+    monkeypatch.setattr(cli, "create_llm_client", fake_create_client)
+
+    result = runner.invoke(cli.app, ["input text"])
+
+    assert result.exit_code == 0, result.stdout
+    assert dummy_client.generate_called_with is not None
+    assert dummy_client.generate_called_with["grammar"] == 'root ::= "from-config"'
