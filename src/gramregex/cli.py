@@ -5,13 +5,14 @@ from typing import Annotated, Literal
 
 import typer
 
+from gramregex.config import load_grammar_config
 from gramregex.llm.factory import create_llm_client
-from gramregex.settings import Settings, get_settings
+from gramregex.settings import get_settings
 
 app = typer.Typer(add_completion=False, help="Generate grammar-constrained responses using OpenAI Responses API.")
 
 
-def _load_grammar(grammar: str | None, grammar_file: Path | None) -> str:
+def _load_grammar(grammar: str | None, grammar_file: Path | None, *, config_path: Path | None) -> str:
     if grammar and grammar_file:
         msg = "--grammar と --grammar-file は同時に指定できません"
         raise typer.BadParameter(msg)
@@ -22,8 +23,8 @@ def _load_grammar(grammar: str | None, grammar_file: Path | None) -> str:
     if grammar:
         return grammar
 
-    msg = "CFG 構文を --grammar もしくは --grammar-file で指定してください"
-    raise typer.BadParameter(msg)
+    config = load_grammar_config(config_path)
+    return config.content
 
 
 @app.command(name="generate")
@@ -61,11 +62,10 @@ def generate(
     ] = None,
 ) -> None:
     """Generate output constrained by the given CFG grammar."""
-    cfg = _load_grammar(grammar, grammar_file)
-
     settings = get_settings()
+    cfg = _load_grammar(grammar, grammar_file, config_path=settings.grammar_config_path)
     if model:
-        settings = Settings(**{**settings.model_dump(), "openai_model": model})
+        settings = settings.model_copy(update={"openai_model": model})
 
     client = create_llm_client(settings)
     output = client.generate(

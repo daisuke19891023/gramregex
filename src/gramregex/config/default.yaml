@@ -1,0 +1,4 @@
+name: default
+description: "デフォルトの grammar 設定"
+content: |
+  root ::= "ok"

@@ -2,7 +2,9 @@
 
 from functools import lru_cache
 
-from pydantic import Field, model_validator
+from pathlib import Path
+
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +19,21 @@ class Settings(BaseSettings):
         default=None, description="Optional base URL for OpenAI-compatible endpoints",
     )
     openai_model: str = Field(default="gpt-4.1-mini", description="Default OpenAI model name")
+    grammar_config_path: Path | None = Field(
+        default=None,
+        description="YAML file containing default grammar settings",
+        validation_alias=AliasChoices("GRAMREGEX_CONFIG_PATH", "GRAMREGEX_CONFIG"),
+    )
+
+    @field_validator("grammar_config_path", mode="before")
+    @classmethod
+    def empty_config_path_is_none(
+        cls, value: str | Path | None,
+    ) -> str | Path | None:
+        """Normalize blank config path to None."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="after")
     def validate_api_key(self) -> "Settings":
